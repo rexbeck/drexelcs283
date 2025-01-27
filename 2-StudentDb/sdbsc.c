@@ -48,7 +48,7 @@ int open_db(char *dbFile, bool should_truncate){
 /*
  *  get_student
  *      fd:  linux file descriptor
- *      id:  the student id we are looking forname of the
+ *      id:  the student id we are looking for name of the
  *      *s:  a pointer where the located (if found) student data will be
  *           copied
  * 
@@ -88,7 +88,9 @@ int get_student(int fd, int id, student_t *s){
  *            
  */
 int add_student(int fd, int id, char *fname, char *lname, int gpa){
-    printf(M_NOT_IMPL);
+    student_t student = {id, fname, lname, gpa};
+    lseek(fd, sizeof(student), SEEK_SET);
+
     return NOT_IMPLEMENTED_YET;
 }
 
