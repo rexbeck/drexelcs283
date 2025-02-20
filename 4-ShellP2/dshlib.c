@@ -51,7 +51,6 @@
  *  Standard Library Functions You Might Want To Consider Using (assignment 2+)
  *      fork(), execvp(), exit(), chdir()
  */
-<<<<<<< HEAD
 
 void print_buffer(char *buff)
 {
@@ -129,43 +128,6 @@ int exec_local_cmd_loop()
 
         //IMPLEMENT THE REST OF THE REQUIREMENTS
         free(cmd_buff);
-=======
-int exec_local_cmd_loop()
-{
-    char *cmd_buff;
-    int rc = 0;
-    cmd_buff_t cmd;
-
-    // TODO IMPLEMENT MAIN LOOP
-
-    // TODO IMPLEMENT parsing input to cmd_buff_t *cmd_buff
-
-    // TODO IMPLEMENT if built-in command, execute builtin logic for exit, cd (extra credit: dragon)
-    // the cd command should chdir to the provided directory; if no directory is provided, do nothing
-
-    // TODO IMPLEMENT if not built-in command, fork/exec as an external command
-    // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
-
-    while(1){
-        printf("%s", SH_PROMPT);
-        if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
-            printf("idk");
-            printf("\n");
-            break;
-        }
-        printf("finished fgets\n");
-        //remove the trailing \n from cmd_buff
-        cmd_buff[strcspn(cmd_buff,"\n")] = '\0';
-        printf("finished removal of trailing \\n\n");
-
-        printf("Buffer:  [");
-        for (int i=0; i<ARG_MAX; i++){
-            putchar(*(cmd_buff+i));
-        }
-        putchar(']');
-        putchar('\n');
-        //IMPLEMENT THE REST OF THE REQUIREMENTS
->>>>>>> db9e7adce57ab8659e767df233747f21ef8db555
     }
 
     return OK;
