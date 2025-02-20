@@ -67,5 +67,26 @@ int exec_local_cmd_loop()
     // TODO IMPLEMENT if not built-in command, fork/exec as an external command
     // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
 
+    while(1){
+        printf("%s", SH_PROMPT);
+        if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
+            printf("idk");
+            printf("\n");
+            break;
+        }
+        printf("finished fgets\n");
+        //remove the trailing \n from cmd_buff
+        cmd_buff[strcspn(cmd_buff,"\n")] = '\0';
+        printf("finished removal of trailing \\n\n");
+
+        printf("Buffer:  [");
+        for (int i=0; i<ARG_MAX; i++){
+            putchar(*(cmd_buff+i));
+        }
+        putchar(']');
+        putchar('\n');
+        //IMPLEMENT THE REST OF THE REQUIREMENTS
+    }
+
     return OK;
 }
