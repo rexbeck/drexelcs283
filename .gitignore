@@ -1,4 +1,5 @@
 *.txt
 *.dSYM
-*.sh
+test.sh
+testload.sh
 *.db
