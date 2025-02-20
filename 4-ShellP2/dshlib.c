@@ -74,8 +74,8 @@ void print_buffer(char *buff)
 // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
 int exec_local_cmd_loop()
 {
-    char *cmd_buff, current, *argv[CMD_ARGV_MAX], *temp;
-    int rc = 0, space_indexes[CMD_MAX], buff_idx = 0, arg_count = 0, temp_idx = 0;
+    char *cmd_buff, current, argv[CMD_ARGV_MAX][ARG_MAX], *temp;
+    int rc = 0, buff_idx = 0, arg_count = 0, temp_idx = 0;
     cmd_buff_t cmd;
 
     while(1){
@@ -95,19 +95,18 @@ int exec_local_cmd_loop()
         temp = malloc(ARG_MAX);
         while (1)
         {
-            printf("current %c\n", current);
             if (current == SPACE_CHAR){
                 // add arg to argv and empty temp.
-                argv[arg_count] = temp;
+                strcpy(argv[arg_count], temp);
                 arg_count++;
                 temp_idx = 0;
-                strcpy(temp, "");
+                memset(temp, '\0', sizeof(temp));
                 buff_idx++;
                 current = *(cmd_buff + buff_idx);
                 continue;
             }
             else if (current == '\0'){
-                argv[arg_count] = temp;
+                strcpy(argv[arg_count], temp);
                 arg_count++;
                 break;
             }
@@ -120,11 +119,11 @@ int exec_local_cmd_loop()
             current = *(cmd_buff + buff_idx);
         }
         free(temp);
+        cmd.argc = arg_count;
+        cmd.argv[arg_count] = argv;
+        cmd._cmd_buffer = cmd_buff;
 
-        printf("argc: %d\n", arg_count);
-        for (int i = 0; argv[i] != NULL; i++) {
-            printf("%s\n", argv[i]);
-        }
+        
 
         //IMPLEMENT THE REST OF THE REQUIREMENTS
         free(cmd_buff);
