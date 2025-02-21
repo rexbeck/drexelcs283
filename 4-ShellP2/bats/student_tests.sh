@@ -12,3 +12,12 @@ EOF
     # Assertions
     [ "$status" -eq 0 ]
 }
+
+@test "Handles too long command." {
+    run ./dsh <<EOF                
+havingthisbeareally longcommandtobreak theparserparserparserparserparser
+EOF
+
+    # Assertions
+    [ "$status" -eq -3 ]
+}
