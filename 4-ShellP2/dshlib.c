@@ -74,60 +74,81 @@ void print_buffer(char *buff)
 // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
 int exec_local_cmd_loop()
 {
-    char *cmd_buff, current, argv[CMD_ARGV_MAX][ARG_MAX], *temp;
-    int rc = 0, buff_idx = 0, arg_count = 0, temp_idx = 0;
+    char *cmd_buff, first;
+    int rc = 0;
     cmd_buff_t cmd;
 
-    while(1){
+    while(true){
         cmd_buff = malloc(SH_CMD_MAX);
         printf("%s", SH_PROMPT);
         if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
             printf("\n");
+            rc = OK;
             break;
         }
 
         //remove the trailing \n from cmd_buff
         cmd_buff[strcspn(cmd_buff,"\n")] = '\0';
 
-        print_buffer(cmd_buff);
-
-        current = *(cmd_buff + buff_idx);
-        temp = malloc(ARG_MAX);
-        while (1)
+        // CHECK FOR EMPTY COMMAND
+        first = *cmd_buff;
+        if (first == '\0')
         {
-            if (current == SPACE_CHAR){
-                // add arg to argv and empty temp.
-                strcpy(argv[arg_count], temp);
-                arg_count++;
-                temp_idx = 0;
-                memset(temp, '\0', sizeof(temp));
-                buff_idx++;
-                current = *(cmd_buff + buff_idx);
+            printf(CMD_WARN_NO_CMD);
+            rc = WARN_NO_CMDS;
+            break;
+        }
+
+        cmd.argc = 0;
+        memset(cmd.argv, '\0', sizeof(cmd.argv));
+        cmd._cmd_buffer = cmd_buff;
+        
+        char *token = strtok(cmd_buff, " ");
+        while (token != NULL){
+            cmd.argv[cmd.argc] = strdup(token);  // Store dynamically
+            cmd.argc++;
+            token = strtok(NULL, " ");
+        }
+
+        if (strcmp(cmd.argv[0], EXIT_CMD) == 0)
+        {
+            rc = OK;
+            break;
+        }
+        else if (strcmp(cmd.argv[0], "cd") == 0)
+        {
+            if (cmd.argc == 1) continue;
+            else if (cmd.argc > 2){
+                printf("Command \"cd\" only one (1) argument.\n");
                 continue;
             }
-            else if (current == '\0'){
-                strcpy(argv[arg_count], temp);
-                arg_count++;
+            
+            if (chdir(cmd.argv[1]) != 0){
+                printf("chdir to %s failed\n", cmd.argv[1]);
+                continue;
+            }
+        }
+        else {
+            pid_t pid = fork();
+            if (pid == 0) {
+                // Child process
+                rc = execvp(cmd.argv[0], cmd.argv);
+                if (rc == -1) {
+                    printf("Execvp %s failed", cmd.argv[0]);
+                    rc = ERR_EXEC_CMD;
+                    break;
+                }
+            } else if (pid > 0) {
+                // Parent process
+                wait(NULL);
+            } else {
+                printf("Fork error");
+                rc = ERR_EXEC_CMD;
                 break;
             }
-
-            temp[temp_idx] = current;
-
-            temp_idx++;
-            buff_idx++;
-
-            current = *(cmd_buff + buff_idx);
         }
-        free(temp);
-        cmd.argc = arg_count;
-        cmd.argv[arg_count] = argv;
-        cmd._cmd_buffer = cmd_buff;
-
-        
-
-        //IMPLEMENT THE REST OF THE REQUIREMENTS
-        free(cmd_buff);
     }
 
-    return OK;
+    free(cmd_buff);
+    return rc;
 }
