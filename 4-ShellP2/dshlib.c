@@ -103,11 +103,25 @@ int exec_local_cmd_loop()
         memset(cmd.argv, '\0', sizeof(cmd.argv));
         cmd._cmd_buffer = cmd_buff;
         
-        char *token = strtok(cmd_buff, " ");
-        while (token != NULL){
-            cmd.argv[cmd.argc] = strdup(token);  // Store dynamically
-            cmd.argc++;
-            token = strtok(NULL, " ");
+        char *idx = strstr(cmd_buff, "\"");
+
+        if (idx == NULL) 
+        {
+            char *token = strtok(cmd_buff, " ");
+            while (token != NULL){
+                cmd.argv[cmd.argc] = strdup(token);
+                cmd.argc++;
+                token = strtok(NULL, " ");
+            }
+        }
+        else {
+            char *quote_token = strtok(cmd_buff, "\"");
+            quote_token = strtok(NULL, "\"");
+            
+            char *space_token = strtok(cmd_buff, " ");
+            cmd.argv[0] = strdup(space_token);
+            cmd.argv[1] = strdup(quote_token);
+            cmd.argc = 2;
         }
 
         if (strcmp(cmd.argv[0], EXIT_CMD) == 0)
