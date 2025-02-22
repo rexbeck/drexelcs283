@@ -13,11 +13,13 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-@test "Handles too long command." {
+@test "Handles unknown command." {
     run ./dsh <<EOF                
-havingthisbeareally longcommandtobreak theparserparserparserparserparser
+fakecommand
 EOF
 
+    echo "Exit Status: $status"
+
     # Assertions
-    [ "$status" -eq -3 ]
+    [ "$status" -eq 127 ]
 }
