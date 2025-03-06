@@ -153,40 +153,8 @@ int exec_local_cmd_loop()
             free(command_list);
             return rc;
         }
-        printf("command_list->num = %d\n", command_list->num);
-        for(int i = 0; i > command_list->num; i++){
-            printf("loop\n");
-            printf("%d.\n", i);
-            for (int j = 0; j > command_list->commands[i].argc; j++){
-                printf("\t%s\n", command_list->commands[i].argv[j]);
-            }
-        }
-        printf("there should be things above\n");
-        return OK;
-        // cmd.argc = 0;
-        // memset(cmd.argv, '\0', sizeof(cmd.argv));
-        // cmd._cmd_buffer = cmd_buff;
         
-        // char *idx = strstr(cmd_buff, "\"");
-
-        // if (idx == NULL) 
-        // {
-        //     char *token = strtok(cmd_buff, " ");
-        //     while (token != NULL){
-        //         cmd.argv[cmd.argc] = strdup(token);
-        //         cmd.argc++;
-        //         token = strtok(NULL, " ");
-        //     }
-        // }
-        // else {
-        //     char *quote_token = strtok(cmd_buff, "\"");
-        //     quote_token = strtok(NULL, "\"");
-            
-        //     char *space_token = strtok(cmd_buff, " ");
-        //     cmd.argv[0] = strdup(space_token);
-        //     cmd.argv[1] = strdup(quote_token);
-        //     cmd.argc = 2;
-        // }
+        return OK;
 
         if (strcmp(cmd.argv[0], EXIT_CMD) == 0)
         {
