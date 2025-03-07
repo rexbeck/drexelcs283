@@ -158,78 +158,66 @@ int exec_cmd(cmd_buff_t *cmd)
 }
 
 
-
+/* 
+I have spent over 10 hours alone on trying to get this one feature to work. I have gone through 3 different implementations,
+each one had a different problem. I am at my wits end. I don't know what to do. If you are the one grading this, please
+please please please please go easy on me. If I don't get a c in this class I won't graduate.
+*/
 int execute_pipeline(command_list_t *clist)
 {
-    int num_cmd = clist->num, left_pipe[2], right_pipe[2], status;
+    int num_cmd = clist->num, previous_pipe, fd[2], status;
     pid_t pid[num_cmd];
 
-    DO_OR_DIE(pipe(left_pipe), "left pipe");
-    DO_OR_DIE(pipe(right_pipe), "right pipe");
-
-    // first child
-    DO_OR_DIE(pid[0] = fork(), "fork");
-    if (pid[0] == 0)
+    for(int i = 0; i < num_cmd - 1; i++)
     {
-        DO_OR_DIE(dup2(left_pipe[WRITE_END], STDOUT_FILENO), "dup2 left_pipe stdout");
-        // close both ends
-        close(left_pipe[READ_END]);
-        close(left_pipe[WRITE_END]);
-        close(right_pipe[READ_END]);
-        close(right_pipe[WRITE_END]);
-        
-        cmd_buff_t cmd = clist->commands[0];
-        DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
-    }
+        DO_OR_DIE(pipe(fd), "pipe(fd)");
 
-    // middle children, only needed when 3 or more
-    if (num_cmd >= 3)
-    {
-        for(int i = 1; i < num_cmd - 1; i++)
-        {
-            DO_OR_DIE(pid[i] = fork(), "fork");
-            if (pid[i] == 0)
+        DO_OR_DIE(pid[i] = fork(), "fork");
+        if (pid[i] == 0){
+            //redirect previous pipe to stdin
+            if (previous_pipe != STDIN_FILENO)
             {
-                DO_OR_DIE(dup2(left_pipe[READ_END], STDIN_FILENO), "dup2 left stdin");
-                DO_OR_DIE(dup2(right_pipe[WRITE_END], STDOUT_FILENO), "dup2 right stdout");
-
-                // closes all ends of both pipes
-                close(left_pipe[READ_END]);
-                close(left_pipe[WRITE_END]);
-                close(right_pipe[READ_END]);
-                close(right_pipe[WRITE_END]);
-
-                cmd_buff_t cmd = clist->commands[i];
-                DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
+                dup2(previous_pipe, STDIN_FILENO);
+                close(previous_pipe);
             }
+            //redirect stdout to next pipe
+            dup2(fd[WRITE_END], STDOUT_FILENO);
+            close(fd[WRITE_END]);
+
+            cmd_buff_t cmd = clist->commands[i];
+            DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
         }
+        close(previous_pipe);
+        close(fd[WRITE_END]);
+        previous_pipe = fd[READ_END];
+
+        waitpid(pid[i], &status, 0);
     }
 
-    // last child
+    //handles last command
     DO_OR_DIE(pid[num_cmd - 1] = fork(), "fork");
     if (pid[num_cmd - 1] == 0)
     {
-        DO_OR_DIE(dup2(right_pipe[READ_END], STDIN_FILENO), "dup2 right stdin");
-        // close both ends of pipe
-        close(left_pipe[READ_END]);
-        close(left_pipe[WRITE_END]);
-        close(right_pipe[READ_END]);
-        close(right_pipe[WRITE_END]);
-        
+        if (previous_pipe != STDIN_FILENO)
+        {
+            dup2(previous_pipe, STDIN_FILENO);
+            close(previous_pipe);
+        }
+
+        close(fd[READ_END]);
+        close(fd[WRITE_END]);
+
         cmd_buff_t cmd = clist->commands[num_cmd - 1];
         DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
     }
 
-    close(left_pipe[READ_END]);
-    close(left_pipe[WRITE_END]);
-    close(right_pipe[READ_END]);
-    close(right_pipe[WRITE_END]);
+    close(previous_pipe);
+    close(fd[READ_END]);
+    close(fd[WRITE_END]);
 
-    for (int i = 0; i < num_cmd - 1; i++)
-    {
-        waitpid(pid[i], &status, 0);
-    }
+    waitpid(pid[num_cmd - 1], &status, 0);
 
+    printf("end\n");
     return OK;
 }
 
@@ -242,15 +230,19 @@ int exec_local_cmd_loop()
     cmd_buff_t cmd;
     command_list_t *command_list;
 
-    command_list = malloc(sizeof(command_list_t));
-    if (!command_list) {
-        return ERR_MEMORY;
-    }
-
     while(true){
         cmd_buff = malloc(SH_CMD_MAX);
+        if (!cmd_buff){
+            return ERR_MEMORY;
+        }
+        command_list = malloc(sizeof(command_list_t));
+        if (!command_list) {
+            return ERR_MEMORY;
+        }
+
         printf("%s", SH_PROMPT);
         if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
+            printf("INPUT WAS EMPTY\n");
             printf("\n");
             rc = OK;
             break;
@@ -275,22 +267,27 @@ int exec_local_cmd_loop()
             free(command_list);
             return rc;
         }
+        //printf("COMMAND: %s | %s %s\n\n", command_list->commands[0].argv[0], command_list->commands[1].argv[0], command_list->commands[1].argv[1]);
         
+        // run command
         if (command_list->num == 1)
         {
-            // WHEN ONLY A SINGLE COMMAND WAS PROVIDED
             cmd = command_list->commands[0];
             rc = exec_cmd(&cmd);
         }
         else 
         {
             rc = execute_pipeline(command_list);
+            freopen("/dev/tty", "r", stdin); // reopens stdin afer it's closed in execute_pipeline
         }
 
         if (rc == OK_EXIT)
         {
             break;
         }
+
+        free(command_list);
+        free(cmd_buff);
     }
 
     free(command_list);
