@@ -10,6 +10,14 @@
 #include "dshlib.h"
 #define SPACE_STRING " "
 #define QUOTE_STRING "\""
+#define READ_END 0
+#define WRITE_END 1
+#define DO_OR_DIE(x, s) do { \
+    if ((x) < 0) { \
+        perror(s); \
+        exit(1);   \
+    } \
+} while (0)
 
 
 cmd_buff_t build_cmd(char *cmd, int *rc)
@@ -114,6 +122,119 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
 }
 
 
+int exec_cmd(cmd_buff_t *cmd)
+{
+    if (strcmp(cmd->argv[0], EXIT_CMD) == 0)
+    {
+        return OK_EXIT;
+    }
+    else if (strcmp(cmd->argv[0], "cd") == 0)
+    {
+        if (cmd->argc == 1) {
+            return ERR_EXEC_CMD;
+        }
+        else if (cmd->argc > 2){
+            printf("Command \"cd\" only one (1) argument.\n");
+            return ERR_EXEC_CMD;
+        }
+        
+        if (chdir(cmd->argv[1]) != 0){
+            printf("chdir to %s failed\n", cmd->argv[1]);
+            return ERR_EXEC_CMD;
+        }
+    }
+    else {
+        pid_t pid;
+        DO_OR_DIE(pid = fork(), "fork");
+        if (pid == 0) {
+            // Child process
+            DO_OR_DIE(execvp(cmd->argv[0], cmd->argv), "execvp");
+        } else if (pid > 0) {
+            // Parent process
+            wait(NULL);
+        }
+    }
+    return OK;
+}
+
+
+
+int execute_pipeline(command_list_t *clist)
+{
+    int num_cmd = clist->num, left_pipe[2], right_pipe[2], status;
+    pid_t pid[num_cmd];
+
+    DO_OR_DIE(pipe(left_pipe), "left pipe");
+    DO_OR_DIE(pipe(right_pipe), "right pipe");
+
+    // first child
+    DO_OR_DIE(pid[0] = fork(), "fork");
+    if (pid[0] == 0)
+    {
+        DO_OR_DIE(dup2(left_pipe[WRITE_END], STDOUT_FILENO), "dup2 left_pipe stdout");
+        // close both ends
+        close(left_pipe[READ_END]);
+        close(left_pipe[WRITE_END]);
+        close(right_pipe[READ_END]);
+        close(right_pipe[WRITE_END]);
+        
+        cmd_buff_t cmd = clist->commands[0];
+        DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
+    }
+
+    // middle children, only needed when 3 or more
+    if (num_cmd >= 3)
+    {
+        for(int i = 1; i < num_cmd - 1; i++)
+        {
+            DO_OR_DIE(pid[i] = fork(), "fork");
+            if (pid[i] == 0)
+            {
+                DO_OR_DIE(dup2(left_pipe[READ_END], STDIN_FILENO), "dup2 left stdin");
+                DO_OR_DIE(dup2(right_pipe[WRITE_END], STDOUT_FILENO), "dup2 right stdout");
+
+                // closes all ends of both pipes
+                close(left_pipe[READ_END]);
+                close(left_pipe[WRITE_END]);
+                close(right_pipe[READ_END]);
+                close(right_pipe[WRITE_END]);
+
+                cmd_buff_t cmd = clist->commands[i];
+                DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
+            }
+        }
+    }
+
+    // last child
+    DO_OR_DIE(pid[num_cmd - 1] = fork(), "fork");
+    if (pid[num_cmd - 1] == 0)
+    {
+        DO_OR_DIE(dup2(right_pipe[READ_END], STDIN_FILENO), "dup2 right stdin");
+        // close both ends of pipe
+        close(left_pipe[READ_END]);
+        close(left_pipe[WRITE_END]);
+        close(right_pipe[READ_END]);
+        close(right_pipe[WRITE_END]);
+        
+        cmd_buff_t cmd = clist->commands[num_cmd - 1];
+        DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
+    }
+
+    close(left_pipe[READ_END]);
+    close(left_pipe[WRITE_END]);
+    close(right_pipe[READ_END]);
+    close(right_pipe[WRITE_END]);
+
+    for (int i = 0; i < num_cmd - 1; i++)
+    {
+        waitpid(pid[i], &status, 0);
+    }
+
+    return OK;
+}
+
+
+
 int exec_local_cmd_loop()
 {
     char *cmd_buff, first;
@@ -147,6 +268,7 @@ int exec_local_cmd_loop()
             break;
         }
 
+        // create command_list
         rc = build_cmd_list(cmd_buff, command_list);
         if (rc != OK)
         {
@@ -154,44 +276,20 @@ int exec_local_cmd_loop()
             return rc;
         }
         
-        return OK;
+        if (command_list->num == 1)
+        {
+            // WHEN ONLY A SINGLE COMMAND WAS PROVIDED
+            cmd = command_list->commands[0];
+            rc = exec_cmd(&cmd);
+        }
+        else 
+        {
+            rc = execute_pipeline(command_list);
+        }
 
-        if (strcmp(cmd.argv[0], EXIT_CMD) == 0)
+        if (rc == OK_EXIT)
         {
-            rc = OK;
             break;
-        }
-        else if (strcmp(cmd.argv[0], "cd") == 0)
-        {
-            if (cmd.argc == 1) continue;
-            else if (cmd.argc > 2){
-                printf("Command \"cd\" only one (1) argument.\n");
-                continue;
-            }
-            
-            if (chdir(cmd.argv[1]) != 0){
-                printf("chdir to %s failed\n", cmd.argv[1]);
-                continue;
-            }
-        }
-        else {
-            pid_t pid = fork();
-            if (pid == 0) {
-                // Child process
-                rc = execvp(cmd.argv[0], cmd.argv);
-                if (rc == -1) {
-                    printf("Execvp %s failed", cmd.argv[0]);
-                    rc = ERR_EXEC_CMD;
-                    break;
-                }
-            } else if (pid > 0) {
-                // Parent process
-                wait(NULL);
-            } else {
-                printf("Fork error");
-                rc = ERR_EXEC_CMD;
-                break;
-            }
         }
     }
 
