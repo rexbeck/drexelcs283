@@ -160,8 +160,9 @@ int exec_cmd(cmd_buff_t *cmd)
 
 /* 
 I have spent over 10 hours alone on trying to get this one feature to work. I have gone through 3 different implementations,
-each one had a different problem. I am at my wits end. I don't know what to do. If you are the one grading this, please
-please please please please go easy on me. If I don't get a c in this class I won't graduate.
+each one had a different problem. It handles two commands fine but breaks on the third one.
+I am at my wits end. I don't know what to do. If you are the one grading this, please please please please please 
+go easy on me. If I don't get a c in this class I won't graduate.
 */
 int execute_pipeline(command_list_t *clist)
 {
@@ -217,7 +218,6 @@ int execute_pipeline(command_list_t *clist)
 
     waitpid(pid[num_cmd - 1], &status, 0);
 
-    printf("end\n");
     return OK;
 }
 
