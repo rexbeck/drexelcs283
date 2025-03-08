@@ -242,9 +242,7 @@ int exec_local_cmd_loop()
 
         printf("%s", SH_PROMPT);
         if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
-            printf("INPUT WAS EMPTY\n");
-            printf("\n");
-            rc = OK;
+            rc = WARN_NO_CMDS;
             break;
         }
 
@@ -264,10 +262,8 @@ int exec_local_cmd_loop()
         rc = build_cmd_list(cmd_buff, command_list);
         if (rc != OK)
         {
-            free(command_list);
-            return rc;
+            break;
         }
-        //printf("COMMAND: %s | %s %s\n\n", command_list->commands[0].argv[0], command_list->commands[1].argv[0], command_list->commands[1].argv[1]);
         
         // run command
         if (command_list->num == 1)
