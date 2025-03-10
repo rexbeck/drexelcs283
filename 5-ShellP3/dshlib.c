@@ -164,59 +164,65 @@ each one had a different problem. It handles two commands fine but breaks on the
 I am at my wits end. I don't know what to do. If you are the one grading this, please please please please please 
 go easy on me. If I don't get a c in this class I won't graduate.
 */
+
+
+
 int execute_pipeline(command_list_t *clist)
 {
-    int num_cmd = clist->num, previous_pipe, fd[2], status;
-    pid_t pid[num_cmd];
+    int pipes[clist->num - 1][2], num = clist->num;  // Array of pipes
+    pid_t pids[clist->num];        // Array to store process IDs
 
-    for(int i = 0; i < num_cmd - 1; i++)
-    {
-        DO_OR_DIE(pipe(fd), "pipe(fd)");
+    // Create all necessary pipes
+    for (int i = 0; i < num - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
 
-        DO_OR_DIE(pid[i] = fork(), "fork");
-        if (pid[i] == 0){
-            //redirect previous pipe to stdin
-            if (previous_pipe != STDIN_FILENO)
-            {
-                dup2(previous_pipe, STDIN_FILENO);
-                close(previous_pipe);
+    // Create processes for each command
+    for (int i = 0; i < num; i++) {
+        pids[i] = fork();
+        if (pids[i] == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
+
+        if (pids[i] == 0) {  // Child process
+            // Set up input pipe for all except first process
+            if (i > 0) {
+                dup2(pipes[i-1][0], STDIN_FILENO);
             }
-            //redirect stdout to next pipe
-            dup2(fd[WRITE_END], STDOUT_FILENO);
-            close(fd[WRITE_END]);
 
+            // Set up output pipe for all except last process
+            if (i < num - 1) {
+                dup2(pipes[i][1], STDOUT_FILENO);
+            }
+
+            // Close all pipe ends in child
+            for (int j = 0; j < num - 1; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            // Execute command
             cmd_buff_t cmd = clist->commands[i];
-            DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
+            execvp(cmd.argv[0], cmd.argv);
+            perror("execvp");
+            exit(EXIT_FAILURE);
         }
-        close(previous_pipe);
-        close(fd[WRITE_END]);
-        previous_pipe = fd[READ_END];
-
-        waitpid(pid[i], &status, 0);
     }
 
-    //handles last command
-    DO_OR_DIE(pid[num_cmd - 1] = fork(), "fork");
-    if (pid[num_cmd - 1] == 0)
-    {
-        if (previous_pipe != STDIN_FILENO)
-        {
-            dup2(previous_pipe, STDIN_FILENO);
-            close(previous_pipe);
-        }
-
-        close(fd[READ_END]);
-        close(fd[WRITE_END]);
-
-        cmd_buff_t cmd = clist->commands[num_cmd - 1];
-        DO_OR_DIE(execvp(cmd.argv[0], cmd.argv), "execvp");
+    // Parent process: close all pipe ends
+    for (int i = 0; i < num - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
     }
 
-    close(previous_pipe);
-    close(fd[READ_END]);
-    close(fd[WRITE_END]);
-
-    waitpid(pid[num_cmd - 1], &status, 0);
+    // Wait for all children
+    for (int i = 0; i < num; i++) {
+        waitpid(pids[i], NULL, 0);
+    }
 
     return OK;
 }
@@ -274,7 +280,6 @@ int exec_local_cmd_loop()
         else 
         {
             rc = execute_pipeline(command_list);
-            freopen("/dev/tty", "r", stdin); // reopens stdin afer it's closed in execute_pipeline
         }
 
         if (rc == OK_EXIT)
