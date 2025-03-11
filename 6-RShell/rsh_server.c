@@ -50,11 +50,6 @@ int start_server(char *ifaces, int port, int is_threaded){
     int svr_socket;
     int rc;
 
-    //
-    //TODO:  If you are implementing the extra credit, please add logic
-    //       to keep track of is_threaded to handle this feature
-    //
-
     svr_socket = boot_server(ifaces, port);
     if (svr_socket < 0){
         int err_code = svr_socket;  //server socket will carry error code
@@ -121,6 +116,26 @@ int boot_server(char *ifaces, int port){
     struct sockaddr_in addr;
 
     // TODO set up the socket - this is very similar to the demo code
+    svr_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (svr_socket == -1) {
+        perror("socket");
+        exit(ERR_RDSH_COMMUNICATION);
+    }
+
+    int enable=1;
+    setsockopt(svr_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+
+    /* Bind socket to socket name. */
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
+
+    ret = bind(svr_socket, (const struct sockaddr *) &addr,
+               sizeof(struct sockaddr_in));
+    if (ret == -1) {
+        perror("accept");
+        exit(ERR_RDSH_COMMUNICATION);
+    }
 
     /*
      * Prepare for accepting connections. The backlog size is set

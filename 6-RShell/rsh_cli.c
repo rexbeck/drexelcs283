@@ -151,6 +151,49 @@ int start_client(char *server_ip, int port){
     int ret;
 
     // TODO set up cli_socket
+    cli_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (cli_socket == -1) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+
+     /*
+     * For portability clear the whole structure, since some
+     * implementations have additional (nonstandard) fields in
+     * the structure.
+     */
+
+     memset(&addr, 0, sizeof(struct sockaddr_in));
+
+     /* Connect socket to socket address */
+ 
+     addr.sin_family = AF_INET;
+     addr.sin_addr.s_addr = inet_addr(server_ip);
+     addr.sin_port = htons(port);
+ 
+     ret = connect (cli_socket, (const struct sockaddr *) &addr,
+                    sizeof(struct sockaddr_in));
+     if (ret == -1) {
+         fprintf(stderr, "The server is down.\n");
+         exit(EXIT_FAILURE);
+     }
+ 
+    //  ret = send(cli_socket, packet, strlen((char *)packet), 0);
+    //  if (ret == -1) {
+    //      perror("header write error");
+    //      exit(EXIT_FAILURE);
+    //  }
+ 
+     //NOW READ RESPONSES BACK - 2 READS, HEADER AND DATA
+    //  ret = recv(data_socket, recv_buffer, sizeof(recv_buffer),0);
+    //  if (ret == -1) {
+    //      perror("read error");
+    //      exit(EXIT_FAILURE);
+    //  }
+ 
+    //  printf("RECV FROM SERVER -> %s\n",recv_buffer);
+ 
+     close(cli_socket);
 
 
     return cli_socket;
