@@ -253,6 +253,8 @@ int exec_client_requests(int cli_socket) {
     int cmd_rc;
     int last_rc;
     char *io_buff;
+    int is_last_chunk;
+    char eof_char = '\0';
 
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (io_buff == NULL){
@@ -260,7 +262,28 @@ int exec_client_requests(int cli_socket) {
     }
 
     while(1) {
-        // TODO use recv() syscall to get input
+        while((io_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
+        {
+            if (io_size < 0){
+                printf(CMD_ERR_RDSH_COMM);
+                return ERR_RDSH_COMMUNICATION;
+            }
+            if (io_size == 0){
+                printf(CMD_ERR_RDSH_COMM);
+                return ERR_RDSH_COMMUNICATION;
+            }
+
+            is_last_chunk = ((char)io_buff[io_size - 1] == eof_char) ? 1 : 0;
+            if (is_last_chunk) {
+                io_buff[io_size - 1] = '\0';
+            }
+
+            printf("%.*s", (int)io_size, io_buff);
+
+            if (is_last_chunk) {
+                break;
+            }
+        }
 
         // TODO build up a cmd_list
 
@@ -270,8 +293,17 @@ int exec_client_requests(int cli_socket) {
         // - error constants for failures
         // - buffer contents from execute commands
         //  - etc.
-
+        rc = send_message_string(cli_socket, io_buff);
+        if (rc != OK){
+            printf(CMD_ERR_RDSH_COMM);
+            return rc;
+        }
         // TODO send_message_eof when done
+        last_rc = send_message_eof(cli_socket);
+        if (last_rc != OK){
+            printf(CMD_ERR_RDSH_COMM);
+            return last_rc;
+        }
     }
 
     return WARN_RDSH_NOT_IMPL;
@@ -322,8 +354,14 @@ int send_message_eof(int cli_socket){
  *           we were unable to send the message followed by the EOF character. 
  */
 int send_message_string(int cli_socket, char *buff){
-    //TODO implement writing to cli_socket with send()
-    return WARN_RDSH_NOT_IMPL;
+    int bytes_sent;
+    bytes_sent = send(cli_socket, buff, RDSH_COMM_BUFF_SZ, 0);
+    if (bytes_sent < 0) {
+        printf(CMD_ERR_RDSH_COMM);
+        return ERR_RDSH_COMMUNICATION;
+    }
+
+    return OK;
 }
 
 
