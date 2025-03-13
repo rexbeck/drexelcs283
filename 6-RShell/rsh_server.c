@@ -287,13 +287,14 @@ int exec_client_requests(int cli_socket) {
                 io_buff[io_size - 1] = '\0';
             }
 
-            printf("%.*s", (int)io_size, io_buff);
+            //printf("%.*s", (int)io_size, io_buff);
 
             if (is_last_chunk) {
                 break;
             }
         }
-        printf("\n");
+        printf(RCMD_MSG_SVR_EXEC_REQ, io_buff);
+
         // checks whether rc was set in above loop
         if (rc == ERR_RDSH_COMMUNICATION) {
             printf(CMD_ERR_RDSH_COMM);
@@ -329,7 +330,6 @@ int exec_client_requests(int cli_socket) {
             }
             else if (strcmp(cmd.argv[0], "stop-server") == 0) {
                 cmd_rc = STOP_SERVER_SC;
-                break;
             }
             else if (strcmp(cmd.argv[0], "cd") == 0)
             {
@@ -359,6 +359,7 @@ int exec_client_requests(int cli_socket) {
         // - error constants for failures
         // - buffer contents from execute commands
         //  - etc.
+        printf(RCMD_MSG_SVR_RC_CMD, cmd_rc);
         switch(cmd_rc)
         {
             case OK:
@@ -366,10 +367,12 @@ int exec_client_requests(int cli_socket) {
                 break;
             case OK_EXIT:
                 printf(RCMD_MSG_CLIENT_EXITED);
+                send_message_string(cli_socket, EXIT_CMD);
                 rc = OK;
                 break;
             case STOP_SERVER_SC:
                 printf(RCMD_SERVER_EXITED);
+                send_message_string(cli_socket, EXIT_CMD);
                 rc = OK_EXIT;
                 break;
             case ERR_RDSH_SERVER:

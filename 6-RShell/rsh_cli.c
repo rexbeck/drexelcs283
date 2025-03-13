@@ -95,7 +95,7 @@ int exec_remote_cmd_loop(char *address, int port)
     char *cmd_buff;
     char *rsp_buff;
     int cli_socket;
-    ssize_t io_size;
+    int io_size;
     int is_eof;
 
     cli_socket = start_client(address,port);
@@ -124,11 +124,6 @@ int exec_remote_cmd_loop(char *address, int port)
             return client_cleanup(cli_socket, cmd_buff, rsp_buff, WARN_NO_CMDS);
         }
 
-        if (strcmp(cmd_buff, EXIT_CMD) == 0){
-            printf(RCMD_MSG_CLIENT_EXITED);
-            return client_cleanup(cli_socket, cmd_buff, rsp_buff, OK);
-        }
-
         int send_len = strlen(cmd_buff) + 1;
         int bytes_sent = send(cli_socket, cmd_buff, send_len, 0);
         if (bytes_sent < 0){
@@ -136,18 +131,16 @@ int exec_remote_cmd_loop(char *address, int port)
             printf("bytes_sent = %d\n", bytes_sent);
             return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CLIENT);
         }
-        printf(RCMD_MSG_SVR_EXEC_REQ, cmd_buff);
-
 
         // WAIT FOR RESPONSE FROM SERVER
         while ((io_size = recv(cli_socket, rsp_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
         {
             if (io_size < 0) { // error executing command
-                printf(RCMD_MSG_SVR_RC_CMD, ERR_RDSH_CMD_EXEC);
+                printf(CMD_ERR_RDSH_ITRNL, ERR_RDSH_CMD_EXEC);
                 return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CMD_EXEC);
             }
             if (io_size == 0) { // received 0 bytes. still waiting for response but other side closed socket.
-                printf(RCMD_MSG_SVR_RC_CMD, ERR_RDSH_CMD_EXEC);
+                printf(CMD_ERR_RDSH_ITRNL, ERR_RDSH_CMD_EXEC);
                 return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CMD_EXEC);
             }
 
@@ -155,12 +148,22 @@ int exec_remote_cmd_loop(char *address, int port)
             if (is_eof) {
                 rsp_buff[io_size - 1] = '\0';
             }
+            
 
             printf("%.*s", (int)io_size, rsp_buff);
 
             if (is_eof) {
                 break;
             }
+        }
+
+        printf("%s\n", rsp_buff);
+
+        if (strcmp(rsp_buff, EXIT_CMD) == 0) {
+            printf("test\n");
+            return client_cleanup(cli_socket, cmd_buff, rsp_buff, OK);
+        } else {
+            printf("wtf\n");
         }
 
         memset(cmd_buff, '\0', RDSH_COMM_BUFF_SZ);
