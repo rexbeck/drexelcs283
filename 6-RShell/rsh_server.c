@@ -283,6 +283,7 @@ int exec_client_requests(int cli_socket) {
 
             is_last_chunk = ((char)io_buff[io_size - 1] == eof_char) ? 1 : 0;
             if (is_last_chunk) {
+                io_buff[io_size - 2] = '\0'; // removes new line '\n' received from fget.
                 io_buff[io_size - 1] = '\0';
             }
 
@@ -292,6 +293,7 @@ int exec_client_requests(int cli_socket) {
                 break;
             }
         }
+        printf("\n");
         // checks whether rc was set in above loop
         if (rc == ERR_RDSH_COMMUNICATION) {
             printf(CMD_ERR_RDSH_COMM);
@@ -308,6 +310,12 @@ int exec_client_requests(int cli_socket) {
             send_message_string(cli_socket, CMD_ERR_RDSH_COMM);
             send_message_eof(cli_socket);
             return ERR_RDSH_COMMUNICATION;
+        }
+
+        // insurance that only command gets run by execvp
+        for (int i = 0; i < cmd_list.num; i++) {
+            cmd_buff_t cmd = cmd_list.commands[i];
+            cmd.argv[cmd.argc] = NULL;
         }
 
         // TODO rsh_execute_pipeline to run your cmd_list
@@ -499,12 +507,15 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     int exit_code;
     int num_of_cmds = clist->num;
 
+    //printf("cli_sock = %d\n", cli_sock);
+
     // Create all necessary pipes
     for (int i = 0; i < num_of_cmds - 1; i++) {
         if (pipe(pipes[i]) == -1) {
             perror("pipe");
             exit(ERR_RDSH_SERVER);
         }
+        //printf("pipes[%d][0] = %d | pipes[%d][1] = %d\n", i, pipes[i][0], i, pipes[i][1]);
     }
 
     for (int i = 0; i < num_of_cmds; i++) {
@@ -516,22 +527,30 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
 
         if (pids[i] == 0)
         {
-            if (i == 0) {
-                dup2(pipes[i][0], cli_sock);
-            }
+            //printf("iteration %d | child process\n", i);
 
-            // Set up input pipe for all except first process
-            if (i > 0) {
+            cmd_buff_t cmd = clist->commands[i];
+            // printf("Executing command: %s\n", cmd.argv[0]);
+            // for (int j = 0; cmd.argv[j] != NULL; j++) {
+            //     printf("argv[%d]: %s\n", j, cmd.argv[j]);
+            // }
+
+            if (i == 0) {
+                // Setup input pipe for first process
+                dup2(cli_sock, STDIN_FILENO);
+            }
+            else {
+                // Setup input pipe for all except first process
                 dup2(pipes[i-1][0], STDIN_FILENO);
             }
 
-            // Set up output pipe for all except last process
             if (i < num_of_cmds - 1) {
+                // Set up output pipe for all except last process
                 dup2(pipes[i][1], STDOUT_FILENO);
-            }
-
-            if (i == num_of_cmds) {
-                dup2(pipes[i][1], cli_sock);
+                
+            } else {
+                // Setup output pipe for last process to write to client
+                dup2(cli_sock, STDOUT_FILENO);
             }
 
             // Close all pipe ends in child
@@ -541,10 +560,12 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
             }
 
             // Execute command
-            cmd_buff_t cmd = clist->commands[i];
-            printf("cmd: %s %s\n", cmd.argv[0], cmd.argv[1]);
             if (execvp(cmd.argv[0], cmd.argv) == -1) {
-                perror("execvp");
+                char error_msg[256]; // Buffer to hold the formatted string
+                sprintf(error_msg, "execvp %d %s", i, cmd.argv[0]); // Format the string
+                perror(error_msg); // Pass it to perror
+                //fprintf(stderr, "execvp %s failed: %s\n", cmd.argv[0], strerror(ERR_RDSH_CMD_EXEC));
+                //perror("execvp %s", cmd.argv[0]);
                 exit(ERR_RDSH_CMD_EXEC);
             }
         }
@@ -555,26 +576,31 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     }
 
     // Parent process: close all pipe ends
-    for (int i = 0; i < clist->num - 1; i++) {
+    for (int i = 0; i < num_of_cmds - 1; i++) {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
 
     // Wait for all children
-    for (int i = 0; i < clist->num; i++) {
+    for (int i = 0; i < num_of_cmds; i++) {
         waitpid(pids[i], &pids_st[i], 0);
+        //printf("waitpid(pids[%d], ...)\n", i);
     }
 
     //by default get exit code of last process
     //use this as the return value
-    exit_code = WEXITSTATUS(pids_st[clist->num - 1]);
-    for (int i = 0; i < clist->num; i++) {
+    exit_code = WEXITSTATUS(pids_st[num_of_cmds - 1]);
+    //printf("WEXITSTATUS(pids_st[%d]) == %d\n", num_of_cmds - 1, exit_code);
+    for (int i = 0; i < num_of_cmds; i++) {
         //if any commands in the pipeline are EXIT_SC
         //return that to enable the caller to react
-        if (WEXITSTATUS(pids_st[i]) == EXIT_SC)
+        if (WEXITSTATUS(pids_st[i]) == EXIT_SC){
             exit_code = EXIT_SC;
+
+        }
+            
     }
-    printf("EXIT CODE: %d\n", exit_code);
+    //printf("EXIT CODE: %d\n", exit_code);
     return exit_code;
 }
 
