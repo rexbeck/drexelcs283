@@ -94,6 +94,7 @@ int exec_remote_cmd_loop(char *address, int port)
 {
     char *cmd_buff;
     char *rsp_buff;
+    char *exit;
     int cli_socket;
     int io_size;
     int is_eof;
@@ -119,6 +120,13 @@ int exec_remote_cmd_loop(char *address, int port)
 
     while (1) 
     {
+        exit = malloc(RDSH_COMM_BUFF_SZ);
+        if (!exit)
+        {
+            perror("exit");
+            return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_MEMORY);
+        }
+
         printf("%s", SH_PROMPT);
         if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
             return client_cleanup(cli_socket, cmd_buff, rsp_buff, WARN_NO_CMDS);
@@ -135,6 +143,7 @@ int exec_remote_cmd_loop(char *address, int port)
         // WAIT FOR RESPONSE FROM SERVER
         while ((io_size = recv(cli_socket, rsp_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
         {
+
             if (io_size < 0) { // error executing command
                 printf(CMD_ERR_RDSH_ITRNL, ERR_RDSH_CMD_EXEC);
                 return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CMD_EXEC);
@@ -145,27 +154,28 @@ int exec_remote_cmd_loop(char *address, int port)
             }
 
             is_eof = ((char)rsp_buff[io_size - 1] == RDSH_EOF_CHAR) ? 1 : 0;
-            if (is_eof) {
-                rsp_buff[io_size - 1] = '\0';
-            }
+            // if (is_eof) {
+            //     rsp_buff[io_size - 1] = '\0';
+            // }
             
 
             printf("%.*s", (int)io_size, rsp_buff);
 
             if (is_eof) {
                 break;
+            } else {
+                strcpy(exit, rsp_buff);
             }
         }
 
-        printf("%s\n", rsp_buff);
+        printf("%s\n", exit);
 
-        if (strcmp(rsp_buff, EXIT_CMD) == 0) {
-            printf("test\n");
+        if (strcmp(exit, EXIT_CMD) == 0) {
+            free(exit);
             return client_cleanup(cli_socket, cmd_buff, rsp_buff, OK);
-        } else {
-            printf("wtf\n");
         }
 
+        free(exit);
         memset(cmd_buff, '\0', RDSH_COMM_BUFF_SZ);
         memset(rsp_buff, '\0', RDSH_COMM_BUFF_SZ);
     }

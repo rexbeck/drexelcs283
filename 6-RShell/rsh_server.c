@@ -363,7 +363,7 @@ int exec_client_requests(int cli_socket) {
         switch(cmd_rc)
         {
             case OK:
-                rc = NULL;
+                rc = 1;
                 break;
             case OK_EXIT:
                 printf(RCMD_MSG_CLIENT_EXITED);
@@ -391,14 +391,13 @@ int exec_client_requests(int cli_socket) {
             rc = last_rc;
         }
 
-        if (rc != NULL)
+        if (rc != 1)
         {
             break;
         }
 
         memset(io_buff, '\0', RDSH_COMM_BUFF_SZ);
     }
-
     free(io_buff);
     return rc;
 }
