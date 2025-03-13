@@ -530,10 +530,10 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
             //printf("iteration %d | child process\n", i);
 
             cmd_buff_t cmd = clist->commands[i];
-            // printf("Executing command: %s\n", cmd.argv[0]);
-            // for (int j = 0; cmd.argv[j] != NULL; j++) {
-            //     printf("argv[%d]: %s\n", j, cmd.argv[j]);
-            // }
+            printf("Executing command: %s\n", cmd.argv[0]);
+            for (int j = 0; cmd.argv[j] != NULL; j++) {
+                printf("argv[%d]: %s\n", j, cmd.argv[j]);
+            }
 
             if (i == 0) {
                 // Setup input pipe for first process
@@ -564,14 +564,8 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
                 char error_msg[256]; // Buffer to hold the formatted string
                 sprintf(error_msg, "execvp %d %s", i, cmd.argv[0]); // Format the string
                 perror(error_msg); // Pass it to perror
-                //fprintf(stderr, "execvp %s failed: %s\n", cmd.argv[0], strerror(ERR_RDSH_CMD_EXEC));
-                //perror("execvp %s", cmd.argv[0]);
                 exit(ERR_RDSH_CMD_EXEC);
             }
-        }
-        else 
-        {
-            pids_st[i] = pids[i];
         }
     }
 
@@ -584,23 +578,18 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     // Wait for all children
     for (int i = 0; i < num_of_cmds; i++) {
         waitpid(pids[i], &pids_st[i], 0);
-        //printf("waitpid(pids[%d], ...)\n", i);
     }
 
     //by default get exit code of last process
     //use this as the return value
     exit_code = WEXITSTATUS(pids_st[num_of_cmds - 1]);
-    //printf("WEXITSTATUS(pids_st[%d]) == %d\n", num_of_cmds - 1, exit_code);
     for (int i = 0; i < num_of_cmds; i++) {
         //if any commands in the pipeline are EXIT_SC
         //return that to enable the caller to react
         if (WEXITSTATUS(pids_st[i]) == EXIT_SC){
             exit_code = EXIT_SC;
-
         }
-            
     }
-    //printf("EXIT CODE: %d\n", exit_code);
     return exit_code;
 }
 
