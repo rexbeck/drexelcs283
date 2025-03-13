@@ -98,23 +98,23 @@ int exec_remote_cmd_loop(char *address, int port)
     ssize_t io_size;
     int is_eof;
 
+    cli_socket = start_client(address,port);
+    if (cli_socket < 0){
+        perror("start client");
+        return client_cleanup(cli_socket, NULL, NULL, ERR_RDSH_CLIENT);
+    }
+
     cmd_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (!cmd_buff)
     {
         perror("cmd_buff");
-        return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_MEMORY);
+        return client_cleanup(cli_socket, NULL, NULL, ERR_MEMORY);
     }
     rsp_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (!rsp_buff)
     {
         perror("rsp_buff");
-        return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_MEMORY);
-    }
-
-    cli_socket = start_client(address,port);
-    if (cli_socket < 0){
-        perror("start client");
-        return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CLIENT);
+        return client_cleanup(cli_socket, cmd_buff, NULL, ERR_MEMORY);
     }
 
     while (1) 
@@ -138,31 +138,31 @@ int exec_remote_cmd_loop(char *address, int port)
         }
         printf(RCMD_MSG_SVR_EXEC_REQ, cmd_buff);
 
-        int recv_size;
-        while ((recv_size = recv(socket, rsp_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
+
+        // WAIT FOR RESPONSE FROM SERVER
+        while ((io_size = recv(cli_socket, rsp_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
         {
-            if (recv_size < 0) { // error executing command
+            if (io_size < 0) { // error executing command
                 printf(RCMD_MSG_SVR_RC_CMD, ERR_RDSH_CMD_EXEC);
                 return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CMD_EXEC);
             }
-            if (recv_size == 0) { // received 0 bytes. still waiting for response but other side closed socket.
+            if (io_size == 0) { // received 0 bytes. still waiting for response but other side closed socket.
                 printf(RCMD_MSG_SVR_RC_CMD, ERR_RDSH_CMD_EXEC);
                 return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_CMD_EXEC);
             }
 
-            is_eof = ((char)rsp_buff[recv_size - 1] == RDSH_EOF_CHAR) ? 1 : 0;
+            is_eof = ((char)rsp_buff[io_size - 1] == RDSH_EOF_CHAR) ? 1 : 0;
             if (is_eof) {
-                rsp_buff[recv_size - 1] = '\0';
+                rsp_buff[io_size - 1] = '\0';
             }
 
-            printf("%.*s", (int)recv_size, rsp_buff);
+            printf("%.*s", (int)io_size, rsp_buff);
 
             if (is_eof) {
                 break;
             }
         }
 
-        printf("response received\n");
         memset(cmd_buff, '\0', RDSH_COMM_BUFF_SZ);
         memset(rsp_buff, '\0', RDSH_COMM_BUFF_SZ);
     }
