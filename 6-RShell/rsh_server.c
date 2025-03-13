@@ -314,8 +314,7 @@ int exec_client_requests(int cli_socket) {
 
         // insurance that only command gets run by execvp
         for (int i = 0; i < cmd_list.num; i++) {
-            cmd_buff_t cmd = cmd_list.commands[i];
-            cmd.argv[cmd.argc] = NULL;
+            cmd_list.commands[i].argv[cmd_list.commands[i].argc] = NULL;
         }
 
         // TODO rsh_execute_pipeline to run your cmd_list
@@ -353,7 +352,7 @@ int exec_client_requests(int cli_socket) {
             }
         } else {
             cmd_rc = rsh_execute_pipeline(cli_socket, &cmd_list);
-            printf("after rsh_execute_pipeline | cmd_rc = %d\n", cmd_rc);
+            //printf("after rsh_execute_pipeline | cmd_rc = %d\n", cmd_rc);
         }
 
         // TODO send appropriate respones with send_message_string
@@ -363,17 +362,14 @@ int exec_client_requests(int cli_socket) {
         switch(cmd_rc)
         {
             case OK:
-                //send_message_string(cli_socket, io_buff);
                 rc = NULL;
-                printf("case OK: | rc = %d\n", rc);
                 break;
             case OK_EXIT:
-                send_message_string(cli_socket, RCMD_MSG_CLIENT_EXITED);
+                printf(RCMD_MSG_CLIENT_EXITED);
                 rc = OK;
                 break;
             case STOP_SERVER_SC:
                 printf(RCMD_SERVER_EXITED);
-                send_message_string(cli_socket, RCMD_MSG_SVR_STOP_REQ);
                 rc = OK_EXIT;
                 break;
             case ERR_RDSH_SERVER:
@@ -398,7 +394,6 @@ int exec_client_requests(int cli_socket) {
         }
 
         memset(io_buff, '\0', RDSH_COMM_BUFF_SZ);
-        printf("bottom of loop\n");
     }
 
     free(io_buff);
@@ -507,15 +502,12 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     int exit_code;
     int num_of_cmds = clist->num;
 
-    //printf("cli_sock = %d\n", cli_sock);
-
     // Create all necessary pipes
     for (int i = 0; i < num_of_cmds - 1; i++) {
         if (pipe(pipes[i]) == -1) {
             perror("pipe");
             exit(ERR_RDSH_SERVER);
         }
-        //printf("pipes[%d][0] = %d | pipes[%d][1] = %d\n", i, pipes[i][0], i, pipes[i][1]);
     }
 
     for (int i = 0; i < num_of_cmds; i++) {
@@ -527,13 +519,7 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
 
         if (pids[i] == 0)
         {
-            //printf("iteration %d | child process\n", i);
-
-            cmd_buff_t cmd = clist->commands[i];
-            printf("Executing command: %s\n", cmd.argv[0]);
-            for (int j = 0; cmd.argv[j] != NULL; j++) {
-                printf("argv[%d]: %s\n", j, cmd.argv[j]);
-            }
+            cmd_buff_t cmd = clist->commands[i]; // executed command
 
             if (i == 0) {
                 // Setup input pipe for first process
@@ -561,9 +547,7 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
 
             // Execute command
             if (execvp(cmd.argv[0], cmd.argv) == -1) {
-                char error_msg[256]; // Buffer to hold the formatted string
-                sprintf(error_msg, "execvp %d %s", i, cmd.argv[0]); // Format the string
-                perror(error_msg); // Pass it to perror
+                perror("execvp");
                 exit(ERR_RDSH_CMD_EXEC);
             }
         }
